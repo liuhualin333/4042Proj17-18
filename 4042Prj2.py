@@ -42,19 +42,20 @@ def question1(sess,train_feat,train_labels,test_feat,test_labels,dataSize):
 	batched_dataset = shuffled_dataset.batch(32)
 	iterator = batched_dataset.make_initializable_iterator()
 	next_element = iterator.get_next()
-
-	x = tf.placeholder('float64', shape=[None,8])
-	y = tf.placeholder('float64', shape=[None,1])
-	v = tf.Variable(tf.zeros([8,30],dtype='float64'))
-	bh = tf.Variable(tf.zeros([1],dtype='float64'))
-	w = tf.Variable(tf.zeros([30,1],dtype='float64'))
-	bo = tf.Variable(tf.zeros([1],dtype='float64'))
-	syn_h = tf.matmul(x,v)+bh
-	act_h = tf.sigmoid(syn_h)
-	syn_o = tf.matmul(act_h,w)+bo
-	act_o = (output_max-output_min)*tf.sigmoid(syn_o) + output_min
-	delta = tf.reduce_mean(tf.square(y - act_o))
-	init = tf.global_variables_initializer()
+	for d in ['/gpu:0','/gpu:1','/gpu:2','/gpu:3']:
+		with tf.device(d):
+			x = tf.placeholder('float64', shape=[None,8])
+			y = tf.placeholder('float64', shape=[None,1])
+			v = tf.Variable(tf.zeros([8,30],dtype='float64'))
+			bh = tf.Variable(tf.zeros([1],dtype='float64'))
+			w = tf.Variable(tf.zeros([30,1],dtype='float64'))
+			bo = tf.Variable(tf.zeros([1],dtype='float64'))
+			syn_h = tf.matmul(x,v)+bh
+			act_h = tf.sigmoid(syn_h)
+			syn_o = tf.matmul(act_h,w)+bo
+			act_o = (output_max-output_min)*tf.sigmoid(syn_o) + output_min
+			delta = tf.reduce_mean(tf.square(y - act_o))
+			init = tf.global_variables_initializer()
 
 
 	learningRate = 0.0001
@@ -71,8 +72,8 @@ def question1(sess,train_feat,train_labels,test_feat,test_labels,dataSize):
 				next_batch = sess.run(next_element)
 				next_train_feat = sess.run(tf.reshape(tf.stack(next_batch[0]),[-1,8]))
 				next_train_label = sess.run(tf.reshape(tf.stack(next_batch[1]),[-1,1]))
-				sess.run(trainStep,{x:next_train_feat,y:next_train_label})
-				learningerror[i] += sess.run(delta,{x:next_train_feat,y:next_train_label})
+				_,batch_delta = sess.run([trainStep,delta],{x:next_train_feat,y:next_train_label})
+				learningerror[i] += batch_delta
 			except tf.errors.OutOfRangeError:
 				print("End of dataset")
 				break;
@@ -85,8 +86,8 @@ def question1(sess,train_feat,train_labels,test_feat,test_labels,dataSize):
 	plt.show();
 
 features,labels,means,variances = read_files("cal_housing.data")
-
-with tf.Session() as sess:
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.3)
+with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 	trainSetNum = int(math.ceil(0.7*sess.run(tf.shape(labels))[0]))
 	testSetNum = sess.run(tf.shape(labels))[0] - trainSetNum
 	trainData,testData,trainLabels,testLabels = split_train_test(features,labels,trainSetNum,testSetNum)
