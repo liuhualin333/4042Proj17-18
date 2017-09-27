@@ -42,29 +42,42 @@ def question1(sess,train_feat,train_labels,test_feat,test_labels,dataSize):
 	batched_dataset = shuffled_dataset.batch(32)
 	iterator = batched_dataset.make_initializable_iterator()
 	next_element = iterator.get_next()
-	for d in ['/gpu:0','/gpu:1','/gpu:2','/gpu:3']:
-		with tf.device(d):
+	with tf.device('/gpu:0'):
+		with tf.name_scope('input'):
 			x = tf.placeholder('float64', shape=[None,8])
 			y = tf.placeholder('float64', shape=[None,1])
-			v = tf.Variable(tf.zeros([8,30],dtype='float64'))
-			bh = tf.Variable(tf.zeros([1],dtype='float64'))
-			w = tf.Variable(tf.zeros([30,1],dtype='float64'))
-			bo = tf.Variable(tf.zeros([1],dtype='float64'))
+		with tf.name_scope('constant'):
+			label_max = tf.constant(sess.run(output_max),name='maximum_output')
+			label_min = tf.constant(sess.run(output_min),name='minimum_output')
+		with tf.name_scope('weights'):
+			v = tf.Variable(tf.ones([8,30],dtype='float64'),name='h_weight')
+			w = tf.Variable(tf.ones([30,1],dtype='float64'),name='o_weight')
+		with tf.name_scope('biases'):	
+			bh = tf.Variable(tf.zeros([1],dtype='float64'),name='h_bias')
+			bo = tf.Variable(tf.zeros([1],dtype='float64'),name='o_bias')
+		with tf.name_scope('h_synaptic'):
 			syn_h = tf.matmul(x,v)+bh
+		with tf.name_scope('h_activation'):
 			act_h = tf.sigmoid(syn_h)
+		with tf.name_scope('o_synaptic'):
 			syn_o = tf.matmul(act_h,w)+bo
-			act_o = (output_max-output_min)*tf.sigmoid(syn_o) + output_min
+		with tf.name_scope('o_activation'):
+			act_o = (label_max-label_min)*tf.sigmoid(syn_o) + label_min
+		with tf.name_scope('delta'):
 			delta = tf.reduce_mean(tf.square(y - act_o))
-			init = tf.global_variables_initializer()
+		init = tf.global_variables_initializer()
 
 
 	learningRate = 0.0001
 	epoch = 1000
 	learningerror = np.zeros(epoch)
 
-	trainStep = tf.train.GradientDescentOptimizer(learningRate).minimize(delta)
-	sess.run(init)
+	with tf.name_scope('train'):
+		trainStep = tf.train.GradientDescentOptimizer(learningRate).minimize(delta)
 
+	sess.run(init)
+	# create log writer object
+	writer = tf.summary.FileWriter('./logs', graph=tf.get_default_graph())
 	for i in range(epoch):
 		sess.run(iterator.initializer)
 		while True:
@@ -86,8 +99,7 @@ def question1(sess,train_feat,train_labels,test_feat,test_labels,dataSize):
 	plt.show();
 
 features,labels,means,variances = read_files("cal_housing.data")
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.3)
-with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+with tf.Session() as sess:
 	trainSetNum = int(math.ceil(0.7*sess.run(tf.shape(labels))[0]))
 	testSetNum = sess.run(tf.shape(labels))[0] - trainSetNum
 	trainData,testData,trainLabels,testLabels = split_train_test(features,labels,trainSetNum,testSetNum)
