@@ -13,11 +13,8 @@ def read_files(filename):
 	#Perform data normalization and feature scaling
 	means = np.mean(features,0)
 	std = np.mean(features)
-	means_label = np.mean(labels,0)
-	std_label = np.mean(labels)
 	normalizedFeat = data_normalization(features,means,std)
-	normalizedLabels = data_normalization(labels,means_label,std_label)
-	return normalizedFeat,normalizedLabels,means,std,means_label,std_label
+	return normalizedFeat,labels,means,std
 
 def data_normalization(features,means,std):
 	normalizedFeat = (features - means) / std
@@ -48,12 +45,9 @@ def question1(train_feat,train_labels,test_feat,test_labels,dataSize):
 	with tf.name_scope('input'):
 		x = tf.placeholder('float64', shape=[None,8])
 		y = tf.placeholder('float64', shape=[None,1])
-	with tf.name_scope('constant'):
-		label_max = tf.constant(output_max,name='maximum_output',dtype='float64')
-		label_min = tf.constant(output_min,name='minimum_output',dtype='float64')
 	with tf.name_scope('weights'):
-		v = tf.Variable(tf.ones([8,30],dtype='float64'),name='h_weight')
-		w = tf.Variable(tf.ones([30,1],dtype='float64'),name='o_weight')
+		v = tf.Variable(np.random.randn(8,30)*.01,dtype='float64',name='h_weight')
+		w = tf.Variable(np.random.randn(30,1)*.01,dtype='float64',name='o_weight')
 	with tf.name_scope('biases'):	
 		bh = tf.Variable(tf.zeros([1],dtype='float64'),name='h_bias')
 		bo = tf.Variable(tf.zeros([1],dtype='float64'),name='o_bias')
@@ -64,30 +58,27 @@ def question1(train_feat,train_labels,test_feat,test_labels,dataSize):
 	with tf.name_scope('o_synaptic'):
 		syn_o = tf.matmul(act_h,w)+bo
 	with tf.name_scope('o_activation'):
-		#act_o = (label_max-label_min)*tf.sigmoid(syn_o) + label_min
-		act_o = syn_o
+		act_o = (output_max-output_min)*tf.sigmoid(syn_o) + output_min
 	with tf.name_scope('delta'):
-		delta = tf.reduce_mean(tf.square(y - act_o))
+		delta = tf.reduce_mean(tf.square(y-act_o))
 	init = tf.global_variables_initializer()
 
 
-	learningRate = 0.001
+	learningRate = 0.0001
 	epoch = 1000
 	learningerror = np.zeros(epoch)
 
 	with tf.name_scope('train'):
 		trainStep = tf.train.GradientDescentOptimizer(learningRate).minimize(delta)
 	with tf.Session() as sess:
-		sess.run(init)
+		sess.run(init) 
 		# create log writer object
-		writer = tf.summary.FileWriter('./logs', graph=tf.get_default_graph())
 		for i in range(epoch):
-			np.random.shuffle(batches)
+			np.random.shuffle(data)
+			batches = np.array_split(data,list(np.arange(32,dataSize,32)))
 			for batch in batches:
-				next_train_feat = sess.run(tf.reshape((tf.stack(batch[:,:8])),[-1,8]))
-				next_train_label = sess.run(tf.reshape(tf.stack(batch[:,8:]),[-1,1]))
-				sess.run(trainStep,{x:next_train_feat,y:next_train_label})
-			learningerror[i]=sess.run(delta,{x:sess.run(tf.reshape(tf.stack(train_feat),[-1,8])),y:sess.run(tf.reshape(tf.stack(train_labels),[-1,1]))})
+				_,batch_delta = sess.run([trainStep,delta], {x:batch[:,:8], y:batch[:,8:]})
+				learningerror[i]+=batch_delta/train_feat.shape[0]
 			print("Dataset finished[%d]: %lf" % (i,learningerror[i]))
 
 	plt.figure()
@@ -96,11 +87,11 @@ def question1(train_feat,train_labels,test_feat,test_labels,dataSize):
 	plt.savefig('figure_prj1.2.q1.png')
 	plt.show();
 
-features,labels,means,std,means_label,std_label = read_files("cal_housing.data")
+features,labels,means,std = read_files("cal_housing.data")
 trainSetNum = int(math.ceil(0.7*labels.shape[0]))
 testSetNum = labels.shape[0] - trainSetNum
 print(features.shape,labels.shape)
-trainData,testData,trainLabels,testLabels = split_train_test(features,labels,trainSetNum)
+trainData, testData, trainLabels, testLabels = split_train_test(features,labels,trainSetNum)
 #question1
 question1(trainData,trainLabels,testData,testLabels,trainSetNum)
 
