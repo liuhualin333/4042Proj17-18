@@ -76,8 +76,8 @@ def question1(train_feat,train_labels,test_feat,test_labels,dataSize):
 			#act_o = (output_max-output_min)*tf.sigmoid(syn_o) + output_min
 			act_o = syn_o
 		with tf.name_scope('delta'):
-			delta = tf.reduce_mean(tf.square(act_o-y))
-			accu = tf.reduce_mean(act_o-y)
+			delta = tf.reduce_mean(tf.square(y-act_o))
+			accu = tf.reduce_mean(y-act_o)
 	init = tf.global_variables_initializer()
 
 
